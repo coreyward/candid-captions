@@ -1,0 +1,13 @@
+node_modules/
+.env
+logs/
+*.log
+.DS_Store
+
+# Inputs & Outputs
+input/*
+output/*
+
+# Allow .gitkeep to ensure folders exist on clone
+!input/.gitkeep
+!output/.gitkeep
