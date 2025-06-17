@@ -2,11 +2,11 @@ import { heredoc } from "heredoc-ts";
 import OpenAI from "openai";
 import { z } from "zod/v4";
 
-const ResponseSchema = z.object({
-  caption: z.string(),
-});
+const CaptionResponse = z.string().trim().min(1).max(1000);
 
-export type CaptionResponse = z.infer<typeof ResponseSchema>;
+export type CaptionResponse = {
+  caption: string;
+};
 
 export class CaptionGenerator {
   private openai: OpenAI;
@@ -15,7 +15,7 @@ export class CaptionGenerator {
   constructor(apiKey: string, customPrompt?: string) {
     this.openai = new OpenAI({ apiKey });
     this.prompt =
-      customPrompt ||
+      customPrompt ??
       heredoc`
         Write a brief caption for this photo. Be specific and include terms that might be useful for search later while still writing it in a natural voice. It should help tell the story of the photo. Avoid inferring too much—if you're not confident in a specific action, don't hypothesize in the output, just include what you are reasonably confident of. Output only the caption, nothing else.
       `;
@@ -29,7 +29,11 @@ export class CaptionGenerator {
       const base64Image = imageBuffer.toString("base64");
 
       let enhancedPrompt = this.prompt;
-      if (existingMetadata && (existingMetadata.caption || (existingMetadata.tags && existingMetadata.tags.length > 0))) {
+      if (
+        existingMetadata &&
+        (existingMetadata.caption ||
+          (existingMetadata.tags && existingMetadata.tags.length > 0))
+      ) {
         const contextParts: string[] = [];
         if (existingMetadata.caption) {
           contextParts.push(`EXIF Caption: "${existingMetadata.caption}"`);
@@ -73,17 +77,21 @@ export class CaptionGenerator {
         temperature: 0.7,
       });
 
-      const content = response.choices[0]?.message?.content;
+      const content = response.choices[0]?.message.content;
       if (!content) {
         throw new Error("No caption generated");
       }
 
       return {
-        caption: content.trim(),
+        caption: CaptionResponse.parse(content),
       };
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        error instanceof z.ZodError
+          ? z.prettifyError(error)
+          : error instanceof Error
+            ? error.message
+            : String(error);
       throw new Error(`Failed to generate caption: ${errorMessage}`);
     }
   }

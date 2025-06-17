@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createSpinner } from "nanospinner";
+import { createSpinner, type Spinner } from "nanospinner";
 import "dotenv/config";
+import { z } from "zod/v4";
 import {
   resizeImage,
   stripMetadata,
@@ -14,7 +15,12 @@ import { Logger } from "./logger.js";
 
 const INPUT_DIR = path.join(process.cwd(), "input");
 const OUTPUT_DIR = path.join(process.cwd(), "output");
-const CONCURRENCY = parseInt(process.env.CONCURRENCY || "4", 10);
+const CONCURRENCY = z.coerce
+  .number()
+  .int()
+  .optional()
+  .default(4)
+  .parse(process.env.CONCURRENCY);
 
 async function findJpegFiles(): Promise<string[]> {
   try {
@@ -23,18 +29,34 @@ async function findJpegFiles(): Promise<string[]> {
       .filter((file) => /\.(jpg|jpeg)$/i.test(file))
       .map((file) => path.join(INPUT_DIR, file));
   } catch (error) {
-    if ((error as any).code === "ENOENT") {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       throw new Error(`Input directory not found. Please create: ${INPUT_DIR}`);
     }
     throw error;
   }
 }
 
+type ProcessImageResult = {
+  imagePath: string;
+  caption: string;
+  processingTime: number;
+  metadata?: {
+    existingCaption?: string;
+    existingTags?: string[];
+  };
+};
+
+type ProcessImageError = {
+  imagePath: string;
+  error: string;
+  processingTime: number;
+};
+
 async function processImage(
   imagePath: string,
   captionGenerator: CaptionGenerator,
-  spinner: any
-): Promise<any> {
+  spinner: Spinner
+): Promise<ProcessImageResult> {
   const startTime = Date.now();
   const fileName = path.basename(imagePath);
 
@@ -44,10 +66,10 @@ async function processImage(
     // Read existing metadata
     const metadata = await readImageMetadata(imagePath);
     const existingCaption =
-      metadata["Caption-Abstract"] ||
-      metadata["Description"] ||
-      metadata["ImageDescription"];
-    const existingTags = metadata["Keywords"] || metadata["Subject"];
+      metadata["Caption-Abstract"] ??
+      metadata.Description ??
+      metadata.ImageDescription;
+    const existingTags = metadata.Keywords ?? metadata.Subject;
 
     const existingMetadata: { caption?: string; tags?: string[] } = {};
     if (existingCaption) {
@@ -76,7 +98,10 @@ async function processImage(
 
     const processingTime = Date.now() - startTime;
 
-    const resultMetadata: any = {};
+    const resultMetadata: {
+      existingCaption?: string;
+      existingTags?: string[];
+    } = {};
     if (existingMetadata.caption) {
       resultMetadata.existingCaption = existingMetadata.caption;
     }
@@ -88,17 +113,20 @@ async function processImage(
       imagePath,
       caption,
       processingTime,
-      metadata: Object.keys(resultMetadata).length > 0 ? resultMetadata : undefined,
+      metadata:
+        Object.keys(resultMetadata).length > 0 ? resultMetadata : undefined,
     };
   } catch (error) {
     const processingTime = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`\nError processing ${fileName}: ${errorMessage}`);
-    throw {
-      imagePath,
-      error: errorMessage,
-      processingTime,
-    };
+    throw new Error(
+      JSON.stringify({
+        imagePath,
+        error: errorMessage,
+        processingTime,
+      })
+    );
   }
 }
 
@@ -128,7 +156,9 @@ async function main() {
 
     // Initialize components
     const captionGenerator = new CaptionGenerator(apiKey);
-    const processor = new ParallelProcessor<string, any>(CONCURRENCY);
+    const processor = new ParallelProcessor<string, ProcessImageResult>(
+      CONCURRENCY
+    );
     const logger = new Logger();
 
     // Process images
@@ -146,15 +176,25 @@ async function main() {
 
     for (const result of results) {
       if (result.result) {
-        await logger.log(result.result);
+        logger.log(result.result);
         successCount++;
       } else if (result.error) {
-        const errorData = result.error as any;
-        await logger.log({
-          imagePath: errorData.imagePath || result.item,
-          error: errorData.error || result.error.message,
-          processingTime: errorData.processingTime || 0,
-        });
+        try {
+          const errorData = JSON.parse(
+            result.error.message
+          ) as ProcessImageError;
+          logger.log({
+            imagePath: errorData.imagePath,
+            error: errorData.error,
+            processingTime: errorData.processingTime,
+          });
+        } catch {
+          logger.log({
+            imagePath: result.item,
+            error: result.error.message,
+            processingTime: 0,
+          });
+        }
         errorCount++;
       }
     }
@@ -171,11 +211,16 @@ async function main() {
       console.log("\nFailed images:");
       for (const result of results) {
         if (result.error) {
-          const errorData = result.error as any;
-          const fileName = path.basename(errorData.imagePath || result.item);
-          console.log(
-            `  - ${fileName}: ${errorData.error || result.error.message}`
-          );
+          try {
+            const errorData = JSON.parse(
+              result.error.message
+            ) as ProcessImageError;
+            const fileName = path.basename(errorData.imagePath);
+            console.log(`  - ${fileName}: ${errorData.error}`);
+          } catch {
+            const fileName = path.basename(result.item);
+            console.log(`  - ${fileName}: ${result.error.message}`);
+          }
         }
       }
       console.log("\nCheck the log file for more details.");

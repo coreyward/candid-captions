@@ -1,13 +1,13 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 
-export interface LogEntry {
+export type LogEntry = {
   timestamp: string;
   imagePath: string;
   caption?: string;
   error?: string;
   processingTime: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export class Logger {
@@ -23,7 +23,7 @@ export class Logger {
     );
   }
 
-  async log(entry: Omit<LogEntry, "timestamp">): Promise<void> {
+  log(entry: Omit<LogEntry, "timestamp">): void {
     this.logs.push({
       ...entry,
       timestamp: new Date().toISOString(),

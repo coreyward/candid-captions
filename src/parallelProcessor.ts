@@ -1,7 +1,7 @@
 export class ParallelProcessor<T, R> {
   private concurrency: number;
   private activeCount: number = 0;
-  private queue: Array<() => void> = [];
+  private queue: (() => void)[] = [];
 
   constructor(concurrency: number = 4) {
     this.concurrency = concurrency;
@@ -10,8 +10,8 @@ export class ParallelProcessor<T, R> {
   async process(
     items: T[],
     processor: (item: T) => Promise<R>
-  ): Promise<Array<{ item: T; result?: R; error?: Error }>> {
-    const results: Array<{ item: T; result?: R; error?: Error }> = [];
+  ): Promise<{ item: T; result?: R; error?: Error }[]> {
+    const results: { item: T; result?: R; error?: Error }[] = [];
 
     await Promise.all(
       items.map((item, index) =>
@@ -46,9 +46,9 @@ export class ParallelProcessor<T, R> {
       };
 
       if (this.activeCount < this.concurrency) {
-        run();
+        void run();
       } else {
-        this.queue.push(run);
+        this.queue.push(() => void run());
       }
     });
   }

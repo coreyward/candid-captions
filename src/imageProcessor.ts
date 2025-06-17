@@ -1,9 +1,22 @@
-import sharp from "sharp";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
+import sharp from "sharp";
+import { z } from "zod/v4";
 
 const execFileAsync = promisify(execFile);
+
+const ExifMetadataSchema = z
+  .object({
+    "Caption-Abstract": z.string().optional(),
+    Description: z.string().optional(),
+    ImageDescription: z.string().optional(),
+    Keywords: z.union([z.string(), z.array(z.string())]).optional(),
+    Subject: z.union([z.string(), z.array(z.string())]).optional(),
+  })
+  .loose();
+
+export type ExifMetadata = z.infer<typeof ExifMetadataSchema>;
 
 export async function resizeImage(
   inputPath: string,
@@ -35,16 +48,21 @@ export async function stripMetadata(imageBuffer: Buffer): Promise<Buffer> {
 
 export async function readImageMetadata(
   imagePath: string
-): Promise<Record<string, any>> {
+): Promise<ExifMetadata> {
   try {
     const { stdout } = await execFileAsync("/opt/homebrew/bin/exiftool", [
       "-j",
       imagePath,
     ]);
-    const metadata = JSON.parse(stdout);
-    return metadata[0] || {};
+    const rawMetadata = JSON.parse(stdout) as unknown[];
+    const metadata = ExifMetadataSchema.parse(rawMetadata[0] ?? {});
+    return metadata;
   } catch (error) {
-    console.error("Error reading metadata:", error);
+    if (error instanceof z.ZodError) {
+      console.error("Invalid metadata format:", z.prettifyError(error));
+    } else {
+      console.error("Error reading metadata:", error);
+    }
     return {};
   }
 }
@@ -72,7 +90,7 @@ export async function writeCaption(
     ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const stderr = (error as any).stderr || "";
+    const stderr = (error as Error & { stderr?: string }).stderr ?? "";
     throw new Error(
       `Failed to write caption to image: ${errorMessage}${stderr ? `\nDetails: ${stderr}` : ""}`
     );
