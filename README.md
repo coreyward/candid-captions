@@ -11,6 +11,16 @@ model.
 > machine and is quite useful, but no guarantees are made about it working in
 > any other context. It is provided as-is.
 
+## Examples
+
+These are both real-world examples. Neither image had any metadata associated
+with it. Both captions are accurate.
+
+| Input image                                                                                                                               | Generated caption                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Photograph of a classic muscle car on an urban street](https://github.com/user-attachments/assets/cbe7666b-9d39-449d-9a16-87d51a996d80) | Yellow 1968 Oldsmobile Cutlass convertible parked on a city street with a brick building and chain-link fence in the background.                                        |
+| ![Downtown Night View](https://github.com/user-attachments/assets/0cca2de5-b683-4f59-88dd-fafae888363d)                                   | View of downtown Austin, Texas at night from the roof of a condo, showing light trails of vehicles on a busy highway near the Lady Bird Lake and Riverside Drive exits. |
+
 ## Setup
 
 1. Install dependencies:
