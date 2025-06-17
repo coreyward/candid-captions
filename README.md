@@ -85,6 +85,8 @@ your original images with the added captions in the metadata (full resolution).
 
 - Original images are preserved with metadata intact
 - Only JPEG files are processed
+- Existing captions or keywords in the image metadata are used to inform the
+  caption generation
 - Images are processed concurrently (default 4 workers)
 - Captions are written to Caption-Abstract, Description, and ImageDescription
   EXIF fields

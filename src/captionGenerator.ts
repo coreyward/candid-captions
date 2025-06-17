@@ -1,3 +1,4 @@
+import { heredoc } from "heredoc-ts";
 import OpenAI from "openai";
 import { z } from "zod/v4";
 
@@ -15,12 +16,41 @@ export class CaptionGenerator {
     this.openai = new OpenAI({ apiKey });
     this.prompt =
       customPrompt ||
-      `Write a brief caption for this photo. Be specific and include terms that might be useful for search later while still writing it in a natural voice. It should help tell the story of the photo. Avoid inferring too much—if you're not confident in a specific action, don't hypothesize in the output, just include what you are reasonably confident of. Output only the caption, nothing else.`;
+      heredoc`
+        Write a brief caption for this photo. Be specific and include terms that might be useful for search later while still writing it in a natural voice. It should help tell the story of the photo. Avoid inferring too much—if you're not confident in a specific action, don't hypothesize in the output, just include what you are reasonably confident of. Output only the caption, nothing else.
+      `;
   }
 
-  async generateCaption(imageBuffer: Buffer): Promise<CaptionResponse> {
+  async generateCaption(
+    imageBuffer: Buffer,
+    existingMetadata?: { caption?: string; tags?: string[] }
+  ): Promise<CaptionResponse> {
     try {
       const base64Image = imageBuffer.toString("base64");
+
+      let enhancedPrompt = this.prompt;
+      if (existingMetadata && (existingMetadata.caption || (existingMetadata.tags && existingMetadata.tags.length > 0))) {
+        const contextParts: string[] = [];
+        if (existingMetadata.caption) {
+          contextParts.push(`EXIF Caption: "${existingMetadata.caption}"`);
+        }
+        if (existingMetadata.tags && existingMetadata.tags.length > 0) {
+          contextParts.push(
+            `EXIF Keywords: ${existingMetadata.tags.join(", ")}`
+          );
+        }
+        if (contextParts.length > 0) {
+          enhancedPrompt = heredoc`
+            ${this.prompt} Use the image metadata to inform your caption.
+
+            Image metadata: """
+            ${contextParts.join("\n")}
+            """
+
+            Try to include any names from the metadata in your caption, but be careful not to infer too much.
+          `;
+        }
+      }
 
       const response = await this.openai.chat.completions.create({
         model: "gpt-4.1-mini",
@@ -28,7 +58,7 @@ export class CaptionGenerator {
           {
             role: "user",
             content: [
-              { type: "text", text: this.prompt },
+              { type: "text", text: enhancedPrompt },
               {
                 type: "image_url",
                 image_url: {

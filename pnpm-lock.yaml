@@ -11,6 +11,9 @@ importers:
       dotenv:
         specifier: ^16.5.0
         version: 16.5.0
+      heredoc-ts:
+        specifier: ^1.0.0
+        version: 1.0.0
       nanospinner:
         specifier: ^1.2.2
         version: 1.2.2
@@ -352,6 +355,10 @@ packages:
   get-tsconfig@4.10.1:
     resolution: {integrity: sha512-auHyJ4AgMz7vgS8Hp3N6HXSmlMdUyhSUrfBF16w153rxtLIEOE+HGqaBppczZvnHLqQJfiHotCYpNhl0lUROFQ==}
 
+  heredoc-ts@1.0.0:
+    resolution: {integrity: sha512-TbrKKLy99oiQFD34NtUtQRRntsAYx0IVoa9yt1hTWzHrmlq2NgDRTzcgUJvF5r1AqU5iB02YjImANhvHBvSWJg==}
+    engines: {node: '>=20'}
+
   is-arrayish@0.3.2:
     resolution: {integrity: sha512-eVRqCvVlZbuw3GrM63ovNSNAeA1K16kaR/LRY/92w0zxQ5/1YzwblUX652i4Xs9RwAGjW9d9y6X88t8OaAJfWQ==}
 
@@ -635,6 +642,8 @@ snapshots:
   get-tsconfig@4.10.1:
     dependencies:
       resolve-pkg-maps: 1.0.0
+
+  heredoc-ts@1.0.0: {}
 
   is-arrayish@0.3.2: {}
 

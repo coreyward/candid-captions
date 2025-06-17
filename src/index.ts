@@ -2,8 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createSpinner } from "nanospinner";
 import "dotenv/config";
-
-import { resizeImage, stripMetadata, writeCaption } from "./imageProcessor.js";
+import {
+  resizeImage,
+  stripMetadata,
+  writeCaption,
+  readImageMetadata,
+} from "./imageProcessor.js";
 import { CaptionGenerator } from "./captionGenerator.js";
 import { ParallelProcessor } from "./parallelProcessor.js";
 import { Logger } from "./logger.js";
@@ -37,13 +41,34 @@ async function processImage(
   try {
     spinner.update({ text: `Processing ${fileName}...` });
 
+    // Read existing metadata
+    const metadata = await readImageMetadata(imagePath);
+    const existingCaption =
+      metadata["Caption-Abstract"] ||
+      metadata["Description"] ||
+      metadata["ImageDescription"];
+    const existingTags = metadata["Keywords"] || metadata["Subject"];
+
+    const existingMetadata: { caption?: string; tags?: string[] } = {};
+    if (existingCaption) {
+      existingMetadata.caption = existingCaption;
+    }
+    if (existingTags) {
+      existingMetadata.tags = Array.isArray(existingTags)
+        ? existingTags
+        : [existingTags];
+    }
+
     // Resize and strip metadata for API
     const resizedBuffer = await resizeImage(imagePath);
     const strippedBuffer = await stripMetadata(resizedBuffer);
 
     // Generate caption
     spinner.update({ text: `Generating caption for ${fileName}...` });
-    const { caption } = await captionGenerator.generateCaption(strippedBuffer);
+    const { caption } = await captionGenerator.generateCaption(
+      strippedBuffer,
+      existingMetadata
+    );
 
     // Write caption to metadata
     spinner.update({ text: `Writing caption for ${fileName}...` });
@@ -51,10 +76,19 @@ async function processImage(
 
     const processingTime = Date.now() - startTime;
 
+    const resultMetadata: any = {};
+    if (existingMetadata.caption) {
+      resultMetadata.existingCaption = existingMetadata.caption;
+    }
+    if (existingMetadata.tags) {
+      resultMetadata.existingTags = existingMetadata.tags;
+    }
+
     return {
       imagePath,
       caption,
       processingTime,
+      metadata: Object.keys(resultMetadata).length > 0 ? resultMetadata : undefined,
     };
   } catch (error) {
     const processingTime = Date.now() - startTime;

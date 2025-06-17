@@ -7,6 +7,7 @@ export interface LogEntry {
   caption?: string;
   error?: string;
   processingTime: number;
+  metadata?: Record<string, any>;
 }
 
 export class Logger {
